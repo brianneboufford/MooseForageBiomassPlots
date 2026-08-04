@@ -1,0 +1,235 @@
+---
+title: "Moose Forage Biomass Plot Locations"
+format: html
+editor: visual
+---
+
+```{r setup, include=FALSE}
+
+library(leaflet)
+library(sf)
+library(terra)
+library(htmlwidgets)
+library(htmltools)
+library(leafem)
+library(DT)
+library(kableExtra)
+library(leaflet.extras)
+library(leaflet.extras2)
+
+```
+
+```{r layers, include=FALSE}
+
+# NTEMS landcover 
+ntemsvlce <- rast(file.path("F:", "Nazko", "data", "src", "vlce_60m.tif")) %>%
+  terra::project("EPSG:4326")
+
+# plot locations 
+plot_locations <- st_read(file.path("F:", "Nazko","data", "sgsR", "updated_plot_locations_Aug4_2026.shp")) %>%
+  st_transform(4326)
+
+# Nazko community boundary 
+community <- st_read(file.path("F:", "Nazko", "data", "src", "Nazko_boundaries", "Nazko_Community_Area.shp")) %>% st_transform(4326)
+
+# roads layer 
+roads <- st_read(file.path("F:", "Nazko", "data", "src", "roads", "DPAR_subset_aug4.shp"))
+roads <- st_transform(roads, 4326)
+
+# SBPS boundary 
+nazko_sbps <- st_read(file.path("F:", "Nazko", "data", "src", "Nazko_boundaries", "SBPSDC_nz_buffer_51km.shp")) %>%
+  st_transform(4326)
+
+# ALS grid 
+als_grid <- st_read(file.path("F:", "Nazko", "data", "bclidar", "aoi_las_grid.shp")) %>% st_transform(., crs(ntemsvlce)) %>%
+  st_transform(4326)
+
+# Disturbance type
+change_att <- rast(file.path("F:", "Nazko", "data", "interm", "change_attribution_fire_harvest_aug3.tif")) %>% terra::project("EPSG:4326")
+
+# Disturbance year
+change_yr <- rast(file.path("F:", "Nazko", "data", "interm", "last_change_year_aug3.tif"))
+change_yr[change_yr == 0] <- NA
+
+change_yr <- change_yr %>% terra::project("EPSG:4326")
+change_yr <- round(change_yr, digits = 0) 
+
+ntemsvlce <- terra::as.factor(ntemsvlce)
+change_att <- terra::as.factor(change_att)
+
+# colours for change attribution 
+df_ca <- data.frame(ID <- c(1,2), 
+                    name <- c("Fire", "Harvesting"))
+colnames(df_ca) <- c("ID", 'Names')
+set.cats(change_att, value = df_ca)
+col_ca <- c("#fe9929", "#c2e699")
+coldf_ca <- data.frame(
+  df_ca[1],
+  col_ca)
+
+coltab(change_att) <- coldf_ca
+
+# colours for landcover 
+df <- data.frame(
+  ID <- c(0, 20, 31, 33, 50, 80, 81, 100, 210, 220, 230),
+  name <- c("Unclassified", "Water", "Snow", "Exposed/Barren", "Shrubs", "Wetland", "Wetland-Treed", "Herbs", "Coniferous", "Broadleaf", "Mixed Wood")
+)
+colnames(df) <- c("ID", "Names")
+set.cats(ntemsvlce, value = df)
+col <- c("#686868", "#3333FF", "#CCFFFF", "#996633", "#FFFF00",
+         "#993399", "#9933CC", "#CCFF33", "#006600", "#00CC00",
+         "#CC9900")
+coldf <- data.frame(
+  df[1],
+  col)
+coltab(ntemsvlce) <- coldf
+
+# Colour points by TYPE
+type_pal <- colorFactor(
+  palette = "Set1",
+  domain = plot_locations$TYPE
+)
+
+# Colour ramp for disturbance year
+yr_pal <- colorNumeric(
+  palette = "viridis",
+  domain = c(1985, 2023),
+  na.color = "transparent"
+)
+```
+
+Below is an interactive map that shows the potential plot locations for moose forage biomass measurements. On the right, there is a legend where you can toggle on and off two different basemaps (satellite imagery and street maps). Also using the legend, you can toggle on and off the different spatial layers that were used to inform this sample design. Display options include `plot locations`, `roads`, `landcover (2024)`, `historical disturbance year` and `historical disturbance type (1985-2023)`, the `Nazko community boundary` polygon, the `SBPSdc BEC subzone`, and a grid of `provincial ALS data coverage`.
+
+The plot network was created to have the following classes:
+
+- Wetlands (10)
+- Broadleaf forest (10)
+- Mature coniferous forest (10)
+- Post Harvest 0-10 years (8)
+- Post Harvest 11-20 years (8)
+- Post Harvest 21-30 years (8)
+- Post Harvest 31-40 years (8)
+- Post Fire 0-10 years (8)
+- Post Fire 11-20 years (8)
+- Post Fire 21-30 years (8)
+- Post Fire 31-40 years (8)
+
+Plot locations are coloured by these classes and if you hover your cursor over them, the labels will appear. Plot locations were placed within the `SBPSdc BEC zone`, `within 50km from Nazko`, within the `ALS coverage area`, and between `60 - 200m from the road` segments. Because the moose forage plots are 60m in diameter, this enables samples to be at least 30m from the road but not more than 200m to enable easy access.
+
+- Note: All spatial layers were reprojected to WGS84 for this map display and therefore some plot locations are slightly misaligned with attribute pixels.
+
+```{r leaflet, echo = FALSE, include=TRUE, warning = FALSE}
+# test
+
+l <- leaflet(width = 600, height = 600) %>%
+  
+  #lets use some base imagery from ESRI
+  addProviderTiles("Esri.WorldImagery",
+                   group = "Imagery") %>%
+  
+  addProviderTiles(providers$OpenStreetMap,
+                   group = "OpenStreetMap") %>%
+  
+  #now lets add our NTEMS land cover from 2020
+  addRasterImage(ntemsvlce, 
+                 #you can increase the allowable size of the rast here
+                 maxBytes = 10 * 1024 *1024,
+                 group = "Landcover") %>%
+  
+  addRasterImage(change_att,
+                 opacity = 1,
+                 group = "Disturbance type") %>%
+  
+  addRasterImage(
+  change_yr,
+  colors = yr_pal,
+  opacity = 1,
+  group = "Disturbance year"
+) %>%
+  
+  addCircleMarkers(
+  data = plot_locations,
+  radius = 3,
+  opacity = 1,
+  fillColor = ~type_pal(TYPE),
+  color = ~type_pal(TYPE),
+  stroke = TRUE,
+  fillOpacity = 1,
+  label = ~TYPE,
+  labelOptions = labelOptions(
+    direction = "top",
+    textsize = "14px"
+  ),
+  group = "Plot Locations"
+) %>%
+  
+    addPolylines(
+    data = roads,
+    color = "#bdbdbd",
+    weight = 3,
+    group = "Roads"
+  ) %>%
+  
+    addPolygons(
+    data = community,
+    color = NA,
+    fillColor = "#cb181d",          # outline only
+    fillOpacity = 0.9,
+    group = "Nazko"
+  ) %>% 
+  
+  addPolygons(data = nazko_sbps,
+              color = NA,
+              fillColor = "#807dba",
+              fillOpacity = 0.9,
+              group = "SBPS BEC Zone") %>%
+  
+  addPolygons(data = als_grid, 
+              color = "#6baed6",
+              weight = 2, 
+              fill = NA, 
+              opacity = 0.9,
+              group = "ALS data coverage") %>%
+  #add a legend
+  addRasterLegend(ntemsvlce, group = "Landcover", opacity = 1)%>%
+  addRasterLegend(change_att, group = "Disturbance type", opacity = 1)%>%
+  addLegend(
+  pal = yr_pal,
+  values = c(1985, 2023),
+  title = "Disturbance year",
+  group = "Disturbance year",
+  opacity = 1
+) %>%
+  
+addLayersControl(
+  baseGroups = c("Imagery", "OpenStreetMap"),
+
+  overlayGroups = c(
+    "Plot Locations",
+    "Roads",
+    "Landcover",
+    "Disturbance type",
+    "Disturbance year",
+    "Nazko",
+    "SBPS BEC Zone",
+    "ALS data coverage"
+  ),
+
+  options = layersControlOptions(collapsed = FALSE)
+) %>% 
+hideGroup("OpenStreetMap") %>%
+hideGroup("Disturbance type") %>%
+hideGroup("Disturbance year") %>%
+hideGroup("SBPS BEC Zone") %>%
+hideGroup("ALS data coverage") %>%
+hideGroup("Landcover") %>%
+  
+  #add scale bar
+  addScaleBar(position = c("bottomleft"))
+
+
+```
+
+```{r map, echo=FALSE}
+l
+```
