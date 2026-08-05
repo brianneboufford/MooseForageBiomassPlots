@@ -114,7 +114,7 @@ The plot network was created to have the following classes:
 - Post Fire 21-30 years (8)
 - Post Fire 31-40 years (8)
 
-Plot locations are coloured by these classes and if you hover your cursor over them, the labels will appear. Plot locations were placed within the `SBPSdc BEC zone`, `within 50km from Nazko`, within the `ALS coverage area`, and between `60 - 300m from the road` segments. Because the moose forage plots are 60m in diameter, this enables samples to be at least 30m from the road but not more than 200m to enable easy access.
+Plot locations are coloured by these classes and if you hover your cursor over them, the labels will appear. Plot locations were placed within the `SBPSdc BEC zone`, `within 50km from Nazko`, within the `ALS coverage area`, and between `60 - 300m from the road` segments. Because the moose forage plots are 60m in diameter, this enables samples to be at least 30m from the road but not more than 300m to enable easy access.
 
 - Note: All spatial layers were reprojected to WGS84 for this map display and therefore some plot locations are slightly misaligned with attribute pixels.
 
